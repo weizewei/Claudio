@@ -21,6 +21,7 @@ import state from './lib/state.js';
 import scheduler from './lib/scheduler.js';
 import tts from './lib/tts.js';
 import context from './lib/context.js';
+import { setupNCM, checkNCMLogin } from './lib/ncm-setup.js';
 
 const app = express();
 const server = createServer(app);
@@ -656,7 +657,7 @@ app.get('*', (req, res) => {
 });
 
 // 启动服务器
-server.listen(config_.port, () => {
+server.listen(config_.port, async () => {
   console.log(`
 ╔═══════════════════════════════════════════════════╗
 ║                                                   ║
@@ -666,7 +667,13 @@ server.listen(config_.port, () => {
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝
   `);
-  
+
+  // 自动配置 ncm-cli
+  const ncmSetup = await setupNCM();
+  if (ncmSetup.success) {
+    await checkNCMLogin();
+  }
+
   // 启动调度器
   scheduler.start();
 });
