@@ -1,8 +1,8 @@
-import { exec, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { promisify } from 'util';
+import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync } from 'fs';
 import config from './config.js';
 
 const execAsync = promisify(exec);
@@ -11,15 +11,12 @@ const execAsync = promisify(exec);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
 const ncmCliPath = join(projectRoot, 'node_modules/.bin/ncm-cli');
-const neteaseApiPath = join(projectRoot, 'NeteaseCloudMusicApi');
 
-// neteaseApi 子进程引用
+// NeteaseCloudMusicApi 子进程
 let neteaseApiProcess = null;
 
 /**
  * 初始化网易云音乐服务
- * 1. 配置 ncm-cli 凭证（用于登录）
- * 2. 启动 NeteaseCloudMusicApi 服务器（提供 API）
  */
 export async function startNCMService() {
   const appId = config.ncmOpen?.appId;
@@ -59,7 +56,7 @@ export async function startNCMService() {
     await autoLogin();
   }
 
-  // 步骤3: 启动 NeteaseCloudMusicApi 服务器
+  // 步骤3: 启动 NeteaseCloudMusicApi 服务
   return startNeteaseApi();
 }
 
@@ -84,84 +81,30 @@ async function autoLogin() {
 }
 
 /**
- * 检查端口是否被占用
- */
-async function isPortInUse(port) {
-  try {
-    const { stdout } = await execAsync(`lsof -i :${port} 2>/dev/null || true`, { timeout: 3000 });
-    return stdout.includes('LISTEN');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 克隆 NeteaseCloudMusicApi
- */
-async function cloneNeteaseApi() {
-  console.log('📦 首次运行，克隆 NeteaseCloudMusicApi...');
-  try {
-    await execAsync(`git clone --depth 1 https://github.com/Binaryify/NeteaseCloudMusicApi.git "${neteaseApiPath}"`, {
-      timeout: 60000,
-      cwd: projectRoot
-    });
-    console.log('✅ NeteaseCloudMusicApi 克隆完成');
-    return true;
-  } catch (error) {
-    console.error('❌ 克隆失败:', error.message);
-    return false;
-  }
-}
-
-/**
- * 安装 NeteaseCloudMusicApi 依赖
- */
-async function installNeteaseApiDeps() {
-  console.log('📦 安装 NeteaseCloudMusicApi 依赖...');
-  try {
-    await execAsync('npm install', { timeout: 120000, cwd: neteaseApiPath });
-    console.log('✅ NeteaseCloudMusicApi 依赖安装完成');
-    return true;
-  } catch (error) {
-    console.error('❌ 依赖安装失败:', error.message);
-    return false;
-  }
-}
-
-/**
- * 启动 NeteaseCloudMusicApi 服务器
+ * 启动 NeteaseCloudMusicApi 服务
  */
 async function startNeteaseApi() {
   // 检查端口是否已被占用
-  if (await isPortInUse(3000)) {
-    console.log('✅ 端口 3000 已有服务运行');
-    return { success: true, port: 3000 };
-  }
-
-  // 检查是否已克隆
-  if (!existsSync(neteaseApiPath)) {
-    const cloned = await cloneNeteaseApi();
-    if (!cloned) {
-      return { success: false, error: '克隆失败' };
+  try {
+    const response = await fetch('http://localhost:3000/available', {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (response.ok) {
+      console.log('✅ 端口 3000 已有 NeteaseCloudMusicApi 运行');
+      return { success: true, port: 3000 };
     }
+  } catch {
+    // 端口未被占用，继续启动
   }
 
-  // 检查 node_modules
-  if (!existsSync(join(neteaseApiPath, 'node_modules'))) {
-    const installed = await installNeteaseApiDeps();
-    if (!installed) {
-      return { success: false, error: '依赖安装失败' };
-    }
-  }
-
-  // 启动服务
   console.log('🚀 启动 NeteaseCloudMusicApi 服务 (端口 3000)...');
 
-  neteaseApiProcess = spawn('node', ['app.js'], {
-    cwd: neteaseApiPath,
+  // 使用 npx 启动 NeteaseCloudMusicApi
+  neteaseApiProcess = spawn('npx', ['NeteaseCloudMusicApi@latest'], {
+    cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
-    env: { ...process.env, PORT: 3000 }
+    env: { ...process.env, PORT: '3000' }
   });
 
   neteaseApiProcess.stdout?.on('data', (data) => {
@@ -171,7 +114,7 @@ async function startNeteaseApi() {
 
   neteaseApiProcess.stderr?.on('data', (data) => {
     const msg = data.toString().trim();
-    if (msg && !msg.includes('warn') && !msg.includes('deprecated')) {
+    if (msg && !msg.includes('warn') && !msg.includes('deprecated') && !msg.includes('npm warn')) {
       console.log(`   [NeteaseApi] ${msg}`);
     }
   });
@@ -187,7 +130,21 @@ async function startNeteaseApi() {
   });
 
   // 等待服务启动
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  let retries = 10;
+  while (retries > 0) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch('http://localhost:3000/available', {
+        signal: AbortSignal.timeout(2000)
+      });
+      if (response.ok) {
+        console.log('✅ NeteaseCloudMusicApi 服务已启动 (端口 3000)');
+        return { success: true, port: 3000 };
+      }
+    } catch {
+      retries--;
+    }
+  }
 
   console.log('✅ NeteaseCloudMusicApi 服务已启动 (端口 3000)');
   return { success: true, port: 3000 };
