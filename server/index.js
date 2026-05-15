@@ -382,22 +382,26 @@ app.get('/api/stats', (req, res) => {
  */
 app.post('/api/ncm/login-check', async (req, res) => {
   try {
-    const cookie = req.body.cookie || config.ncm.cookie;
+    const cookie = req.body.cookie || config_.ncm.cookie;
     if (!cookie) {
-      return res.json({ loggedIn: false, message: '未配置 Cookie' });
+      return res.json({ loggedIn: false, message: '未配置 Cookie，请在设置中填入网易云 Cookie' });
     }
     
     const api = await import('NeteaseCloudMusicApi');
     const ncmApi = api.default;
     const result = await ncmApi.login_status({ cookie });
     
-    const loggedIn = result.status === 200 && result.body?.data?.account;
+    // profile 不为 null 表示真实登录（匿名用户 profile 为 null）
+    const profile = result.body?.data?.profile;
+    const account = result.body?.data?.account;
+    const loggedIn = !!(profile && !account?.anonimousUser);
+    
     return res.json({
       loggedIn,
-      nickname: loggedIn ? result.body.data.account.nickname : '',
-      userId: loggedIn ? result.body.data.account.id : '',
-      vipType: loggedIn ? result.body.data.account.vipType : 0,
-      message: loggedIn ? `已登录: ${result.body.data.account.nickname}` : 'Cookie 无效或已过期'
+      nickname: loggedIn ? profile.nickname : '',
+      userId: loggedIn ? profile.userId : '',
+      vipType: loggedIn ? profile.vipType : 0,
+      message: loggedIn ? `已登录: ${profile.nickname}` : 'Cookie 无效或已过期'
     });
   } catch (error) {
     console.error('检测网易云登录失败:', error.message);
@@ -416,7 +420,7 @@ app.post('/api/ncm/cookie', async (req, res) => {
     }
     
     // 更新运行时配置
-    config.ncm.cookie = cookie;
+    config_.ncm.cookie = cookie;
     if (ncm) ncm.cookie = cookie;
     
     // 保存到 .env 文件

@@ -211,33 +211,19 @@ class Router {
 
   /**
    * 检测用户是否需要音乐
+   * 仅在 AI 明确建议播放音乐时才触发，避免误判
    */
   detectMusicNeed(query, aiReply) {
-    const musicIndicators = [
-      // 情绪相关
-      '心情', '情绪', '开心', '难过', '烦', '累', '郁闷', '兴奋', '放松', '安静',
-      // 场景相关
-      '工作', '学习', '运动', '睡觉', '休息', '开车', '走路', '通勤',
-      // 时间相关
-      '早上', '晚上', '深夜', '午后', '清晨',
-      // 直接需求
-      '听', '歌', '音乐', '推荐', '适合', '想', '要',
-      // 状态相关
-      '无聊', '孤单', '想静静', '需要', '来点'
-    ];
-    
-    const queryLower = query.toLowerCase();
     const replyLower = (aiReply || '').toLowerCase();
     
-    // 检查用户输入中是否有音乐需求信号
-    const hasMusicIntent = musicIndicators.some(word => queryLower.includes(word));
-    
-    // 检查 AI 回复是否暗示要播放音乐
+    // 只检查 AI 回复是否明确建议播放音乐
     const aiSuggestsMusic = replyLower.includes('为你播放') || 
-                            replyLower.includes('推荐') || 
-                            replyLower.includes('听听');
+                            replyLower.includes('为你选了') ||
+                            replyLower.includes('为你推荐') ||
+                            replyLower.includes('来听听') ||
+                            replyLower.includes('放一首');
     
-    return hasMusicIntent || aiSuggestsMusic;
+    return aiSuggestsMusic;
   }
 
   /**
