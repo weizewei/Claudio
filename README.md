@@ -34,13 +34,10 @@ cd server && npm install
 cp .env.example .env
 # 编辑 .env 文件，填入你的 API 密钥
 
-# 安装网易云音乐官方 CLI（必需）
-npm install -g @music163/ncm-cli
-
-# 配置 CLI（在 https://music.163.com/st/developer 注册获取 AppID 和 PrivateKey）
-ncm-cli config set appId <你的AppID>
-ncm-cli config set privateKey <你的PrivateKey>
-ncm-cli login
+# 配置网易云音乐 API（在 https://music.163.com/st/developer 注册获取 AppID 和 PrivateKey）
+npx ncm-cli config set appId <你的AppID>
+npx ncm-cli config set privateKey <你的PrivateKey>
+npx ncm-cli login
 
 # 启动服务
 npm start

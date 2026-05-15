@@ -1,31 +1,35 @@
 import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import config from './config.js';
 
 const execAsync = promisify(exec);
+
+// 获取项目根目录
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = join(__dirname, '../..');
 
 /**
  * 网易云音乐开放平台适配器
  * 使用官方 @music163/ncm-cli 进行搜索、推荐、播放等操作
  * 
- * 前置条件：
- * 1. npm install -g @music163/ncm-cli
- * 2. ncm-cli config set appId <你的AppID>
- * 3. ncm-cli config set privateKey <你的PrivateKey>
- * 4. ncm-cli login
+ * ncm-cli 已作为项目依赖安装，无需全局安装
  */
 class NCMOpen {
   constructor() {
     this.appId = config.ncmOpen?.appId || '';
     this.privateKey = config.ncmOpen?.privateKey || '';
     this.isConfigured = !!(this.appId && this.privateKey);
+    // 本地 ncm-cli 路径
+    this.ncmCliPath = join(projectRoot, 'node_modules/.bin/ncm-cli');
   }
 
   /**
    * 执行CLI命令
    */
   async _exec(args, timeout = 20000) {
-    const cmd = `ncm-cli ${args}`;
+    const cmd = `"${this.ncmCliPath}" ${args}`;
     
     try {
       const { stdout, stderr } = await execAsync(cmd, {
@@ -74,8 +78,8 @@ class NCMOpen {
     this.isConfigured = true;
 
     try {
-      await execAsync(`ncm-cli config set appId ${appId}`, { timeout: 5000 });
-      await execAsync(`ncm-cli config set privateKey ${privateKey}`, { timeout: 5000 });
+      await execAsync(`"${this.ncmCliPath}" config set appId ${appId}`, { timeout: 5000 });
+      await execAsync(`"${this.ncmCliPath}" config set privateKey ${privateKey}`, { timeout: 5000 });
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -255,7 +259,7 @@ class NCMOpen {
    */
   async isAvailable() {
     try {
-      const { stdout } = await execAsync('ncm-cli --version', { timeout: 3000 });
+      const { stdout } = await execAsync(`"${this.ncmCliPath}" --version`, { timeout: 3000 });
       return !!stdout;
     } catch {
       return false;
