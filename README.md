@@ -34,14 +34,15 @@ cd server && npm install
 cp .env.example .env
 # 编辑 .env 文件，填入你的 API 密钥
 
-# 启动网易云音乐 API（需要单独运行）
-git clone https://github.com/Binaryify/NeteaseCloudMusicApi.git
-cd NeteaseCloudMusicApi
-node app.js
-# API 运行在 http://localhost:3000
+# 安装网易云音乐官方 CLI（必需）
+npm install -g @music163/ncm-cli
 
-# 回到 Claudio 目录，启动服务
-cd ..
+# 配置 CLI（在 https://music.163.com/st/developer 注册获取 AppID 和 PrivateKey）
+ncm-cli config set appId <你的AppID>
+ncm-cli config set privateKey <你的PrivateKey>
+ncm-cli login
+
+# 启动服务
 npm start
 ```
 
@@ -55,8 +56,10 @@ npm start
 # DeepSeek API (必需)
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
-# 网易云音乐 Cookie（可选，用于获取更高音质）
-NCM_COOKIE=your_netease_cloud_music_cookie_here
+# 网易云音乐开放平台（必需，用于搜索和播放）
+# 在 https://music.163.com/st/developer 注册获取
+NCM_OPEN_APP_ID=your_app_id_here
+NCM_OPEN_PRIVATE_KEY=your_private_key_here
 ```
 
 获取 DeepSeek API Key: https://platform.deepseek.com
