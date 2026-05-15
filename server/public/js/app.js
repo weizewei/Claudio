@@ -34,6 +34,31 @@ class ClaudioApp {
     this.initWaveform();
     this.startWaveformAnimation();
     this.updateTime();
+    
+    // 延迟加载今日推荐，避免自动播放被浏览器阻止
+    this.hasUserInteracted = false;
+    this.pendingRecommendation = null;
+    
+    // 监听首次用户交互
+    const markInteracted = () => {
+      if (!this.hasUserInteracted) {
+        this.hasUserInteracted = true;
+        document.removeEventListener('click', markInteracted);
+        document.removeEventListener('keydown', markInteracted);
+        document.removeEventListener('touchstart', markInteracted);
+        
+        // 用户交互后，如果有待播放的推荐，则播放
+        if (this.pendingRecommendation) {
+          this.handleResponse(this.pendingRecommendation);
+          this.pendingRecommendation = null;
+        }
+      }
+    };
+    document.addEventListener('click', markInteracted);
+    document.addEventListener('keydown', markInteracted);
+    document.addEventListener('touchstart', markInteracted);
+    
+    // 加载今日推荐（但不自动播放）
     this.loadTodayRecommend();
     
     if (window.lucide) {
@@ -153,7 +178,7 @@ class ClaudioApp {
     }
   }
 
-  handleResponse(data) {
+  handleResponse(data, skipAutoPlay = false) {
     if (data.say) {
       this.addLyric('Claudio', data.say, new Date().toLocaleTimeString());
     }
@@ -161,6 +186,15 @@ class ClaudioApp {
     if (data.play?.length > 0) {
       this.playlist = data.play;
       this.currentIndex = 0;
+      
+      // 如果用户还未交互，缓存推荐但不播放
+      if (!this.hasUserInteracted && skipAutoPlay) {
+        this.pendingRecommendation = data;
+        // 只显示歌曲信息，不播放
+        this.displaySongInfo(data.play[0]);
+        return;
+      }
+      
       this.playSong(data.play[0]);
       
       if (data.say && this.ttsEnabled) {
@@ -171,11 +205,52 @@ class ClaudioApp {
     }
   }
 
+  // 仅显示歌曲信息，不播放
+  displaySongInfo(song) {
+    this.currentSong = song;
+    document.getElementById('current-title').textContent = song.name;
+    let artistStr = '';
+    if (Array.isArray(song.artists)) {
+      artistStr = song.artists.map(a => a.name || a).join(', ');
+    } else if (song.artist) {
+      artistStr = song.artist;
+    } else if (typeof song.artists === 'string') {
+      artistStr = song.artists;
+    }
+    document.getElementById('current-artist').textContent = artistStr || '';
+    this.renderPlaylist();
+    
+    // 更新网易云链接
+    const ncmLink = document.getElementById('ncm-link');
+    if (song.id && !String(song.id).startsWith('demo')) {
+      ncmLink.href = `https://music.163.com/#/song?id=${song.id}`;
+      document.getElementById('ncm-link-text').textContent = '网易云音乐';
+      ncmLink.style.display = 'inline-flex';
+    } else {
+      ncmLink.href = '#';
+      ncmLink.style.display = 'none';
+    }
+    
+    // 显示提示，让用户点击播放
+    this.addLyric('Claudio', '💡 点击播放按钮开始播放推荐歌曲', new Date().toLocaleTimeString());
+  }
+
   playSong(song) {
     this.currentSong = song;
     this.audio.src = song.url;
-    this.audio.play();
-    this.isPlaying = true;
+    
+    // 检查用户是否已交互，避免自动播放被阻止
+    if (this.hasUserInteracted) {
+      this.audio.play().catch(err => {
+        console.log('Auto-play prevented:', err.message);
+        this.isPlaying = false;
+        this.updatePlayButton();
+      });
+      this.isPlaying = true;
+    } else {
+      this.isPlaying = false;
+      console.log('Music ready but waiting for user interaction');
+    }
     this.updatePlayButton();
 
     document.getElementById('current-title').textContent = song.name;
@@ -279,7 +354,8 @@ class ClaudioApp {
         body: JSON.stringify({ message: '今天有什么推荐的音乐吗？' })
       });
       const data = await response.json();
-      this.handleResponse(data);
+      // 首次加载时跳过自动播放，等待用户交互
+      this.handleResponse(data, true);
     } catch (error) {
       console.error('Failed to load today recommend:', error);
     }
@@ -420,6 +496,13 @@ class ClaudioApp {
       return;
     }
     
+    // 检查用户是否已交互，避免自动播放被阻止
+    if (!this.hasUserInteracted) {
+      console.log('TTS skipped: waiting for user interaction');
+      if (onComplete) onComplete();
+      return;
+    }
+    
     this.synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'zh-CN';
@@ -429,6 +512,13 @@ class ClaudioApp {
   }
 
   async speakWithVolcano(text, onComplete) {
+    // 检查用户是否已交互，避免自动播放被阻止
+    if (!this.hasUserInteracted) {
+      console.log('TTS skipped: waiting for user interaction');
+      if (onComplete) onComplete();
+      return;
+    }
+    
     try {
       const response = await fetch('/api/tts', {
         method: 'POST',
