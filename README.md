@@ -116,5 +116,8 @@ MIT License
 
 ## 🙏 致谢
 
+本项目参考 [mmguo.dev/claudio-fm](https://mmguo.dev/claudio-fm/) 实现，感谢原作者的创意和灵感。
+
+- [mmguo.dev/claudio-fm](https://mmguo.dev/claudio-fm/) - 原始项目灵感
 - [DeepSeek](https://deepseek.com) - AI 能力支持
 - [网易云音乐](https://music.163.com) - 音乐数据源

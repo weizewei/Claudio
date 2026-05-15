@@ -1,0 +1,30 @@
+{
+  "musicTaste": {
+    "updatedAt": "2026-01-01",
+    "source": "示例数据",
+    "summary": {
+      "zh": "偏好华语流行和抒情歌曲，喜欢有故事感的音乐。"
+    },
+    "favoriteArtists": {
+      "topArtists": [
+        {"name": "周杰伦", "songCount": 10, "reason": "经典华语流行，歌词有深度"},
+        {"name": "陈奕迅", "songCount": 8, "reason": "嗓音独特，情歌动人"}
+      ],
+      "otherNotable": ["林俊杰", "五月天", "薛之谦"]
+    },
+    "musicStyles": {
+      "primary": ["华语流行", "抒情"],
+      "secondary": ["民谣", "轻摇滚"],
+      "language": {
+        "chinese": "80%",
+        "english": "20%"
+      }
+    },
+    "songCharacteristics": {
+      "avgDuration": "4分00秒",
+      "themes": ["情感", "生活", "回忆"],
+      "mood": ["温暖", "治愈", "深情"]
+    },
+    "learnedFromConversation": []
+  }
+}

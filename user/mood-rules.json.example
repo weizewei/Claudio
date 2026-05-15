@@ -1,0 +1,24 @@
+{
+  "moodRules": [
+    {
+      "trigger": "下雨",
+      "response": "播放舒缓的钢琴曲或轻音乐",
+      "songs": ["River Flows in You", "Kiss the Rain"]
+    },
+    {
+      "trigger": "加班",
+      "response": "播放轻音乐帮助专注",
+      "songs": ["Weightless", "Dreaming"]
+    },
+    {
+      "trigger": "开心",
+      "response": "播放轻快的流行乐",
+      "songs": ["晴天", "小幸运"]
+    },
+    {
+      "trigger": "难过",
+      "response": "播放治愈系音乐",
+      "songs": [" fix you", "夜空中最亮的星"]
+    }
+  ]
+}
