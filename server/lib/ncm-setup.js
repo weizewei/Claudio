@@ -1,7 +1,8 @@
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
-import { dirname, join, existsSync } from 'path';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 import config from './config.js';
 
 const execAsync = promisify(exec);
