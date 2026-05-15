@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="description" content="Claudio - 你的个人AI电台">
+  <title>Claudio - 个人AI电台</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部导航 -->
+    <nav class="top-nav">
+      <div class="nav-brand">
+        <img src="/assets/default-cover.svg" alt="Claudio" class="nav-logo">
+        <span class="nav-title">Claudio</span>
+      </div>
+      <div class="nav-time" id="nav-time">19:28</div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 波形可视化背景 -->
+      <div class="waveform-bg">
+        <canvas id="waveform-canvas"></canvas>
+      </div>
+
+      <!-- 播放器卡片 -->
+      <div class="player-card">
+        <!-- 节目标题区 -->
+        <div class="episode-header">
+          <h1 class="episode-title" id="episode-title">Claudio's<br>Radio</h1>
+          <div class="episode-meta">
+            <span class="song-name" id="current-title">If</span>
+            <span class="artist-name" id="current-artist">Bread</span>
+          </div>
+          <a href="#" id="ncm-link" class="ncm-link" target="_blank">
+            <i data-lucide="music" class="link-icon"></i>
+            <span id="ncm-link-text">网易云音乐</span>
+            <i data-lucide="external-link" class="link-icon-small"></i>
+          </a>
+        </div>
+
+        <!-- 播放控制 -->
+        <div class="playback-controls">
+          <button id="btn-play-pause" class="play-btn-large" aria-label="Play/Pause">
+            <i data-lucide="play" class="icon-pause"></i>
+          </button>
+          <div class="progress-info">
+            <span class="time-current" id="current-time">0:00</span>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <span class="time-duration" id="duration">0:00</span>
+          </div>
+        </div>
+
+        <!-- 歌词/对话区域 -->
+        <div class="lyrics-section" id="lyrics-section">
+          <div class="lyrics-list" id="lyrics-list">
+            <!-- 动态生成歌词/对话 -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 底部控制栏 -->
+    <div class="bottom-bar">
+      <div class="bottom-progress">
+        <button id="bottom-play-btn" class="mini-play-btn">
+          <i data-lucide="play" class="icon-mini"></i>
+        </button>
+        <div class="bottom-waveform" id="bottom-waveform">
+          <!-- 简化的波形指示器 -->
+        </div>
+        <div class="bottom-time">
+          <span id="bottom-current">0:00</span>
+          <button id="btn-playlist" class="mini-play-btn playlist-btn" title="播放列表">
+            <i data-lucide="list-music"></i>
+          </button>
+        </div>
+      </div>
+      <div class="bottom-input">
+        <button id="btn-voice" class="icon-btn" title="语音输入">
+          <i data-lucide="mic"></i>
+        </button>
+        <input type="text" id="chat-input" placeholder="和 Claudio 说点什么..." autocomplete="off">
+        <button id="btn-send" class="icon-btn" title="发送">
+          <i data-lucide="send"></i>
+        </button>
+        <button id="btn-settings" class="icon-btn" title="设置">
+          <i data-lucide="settings"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="settings-panel" id="settings-panel">
+      <div class="settings-header">
+        <h2>设置</h2>
+        <button id="close-settings" class="icon-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="settings-content">
+        <div class="setting-group">
+          <h3>API 配置</h3>
+          <div class="setting-item">
+            <label>DeepSeek API Key</label>
+            <input type="password" id="setting-deepseek-key" placeholder="sk-...">
+          </div>
+          <div class="setting-item">
+            <label>火山 TTS API Key</label>
+            <input type="password" id="setting-volcano-apikey" placeholder="新版控制台 API Key">
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>语音设置</h3>
+          <div class="setting-item">
+            <label>启用 TTS</label>
+            <select id="setting-tts-enabled">
+              <option value="false">关闭</option>
+              <option value="true">开启</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>TTS 提供商</label>
+            <select id="setting-tts-provider">
+              <option value="browser">浏览器原生</option>
+              <option value="volcano">火山引擎</option>
+            </select>
+          </div>
+          <div class="setting-item" id="voice-selector" style="display: none;">
+            <label>音色</label>
+            <select id="setting-volcano-voice">
+              <option value="zh_female_vv_uranus_bigtts" selected>Vivi 2.0</option>
+              <option value="zh_female_xiaohe_uranus_bigtts">小何 2.0</option>
+              <option value="zh_male_m191_uranus_bigtts">云舟 2.0</option>
+              <option value="zh_male_taocheng_uranus_bigtts">小天 2.0</option>
+            </select>
+          </div>
+          <div class="setting-item" id="emotion-selector" style="display: none;">
+            <label>情感</label>
+            <select id="setting-volcano-emotion">
+              <option value="">自动</option>
+              <option value="happy">开心</option>
+              <option value="sad">悲伤</option>
+              <option value="radio">情感电台</option>
+              <option value="storytelling">讲故事</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>其他</h3>
+          <div class="setting-item">
+            <label>城市（天气）</label>
+            <input type="text" id="setting-city" placeholder="北京">
+          </div>
+        </div>
+
+        <button id="save-settings" class="save-btn">保存设置</button>
+      </div>
+    </div>
+
+    <!-- 播放列表面板 -->
+    <div class="playlist-panel" id="playlist-panel">
+      <div class="playlist-header">
+        <h2>播放列表</h2>
+        <button id="close-playlist" class="icon-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="playlist-content">
+        <div class="playlist-list" id="playlist-list">
+          <div class="playlist-empty">暂无播放内容</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 遮罩层 -->
+    <div class="overlay" id="overlay"></div>
+  </div>
+
+  <!-- 音频元素 -->
+  <audio id="audio-player" preload="auto"></audio>
+
+  <!-- Scripts -->
+  <script src="/js/app.js?v=28" type="module"></script>
+</body>
+</html>
