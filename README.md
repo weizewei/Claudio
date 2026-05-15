@@ -75,6 +75,61 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 - TTS 语音合成（浏览器原生或火山引擎）
 - 所在城市（用于天气感知）
 
+### 用户数据配置
+
+`user/` 目录包含个性化数据，首次运行后会自动创建。可选配置文件：
+
+| 文件 | 说明 |
+|------|------|
+| `taste.md` | 你的音乐品味偏好 |
+| `routines.md` | 日常作息时间表 |
+| `mood-rules.json` | 情绪响应规则 |
+| `user-taste.json` | JSON 格式的音乐品味分析 |
+
+#### taste.md 示例
+
+```markdown
+# 我的音乐品味
+
+## 喜欢的音乐风格
+- 流行：华语流行、欧美流行
+- 摇滚：轻摇滚、独立摇滚
+
+## 喜欢的歌手/乐队
+- 周杰伦
+- 陈奕迅
+```
+
+#### routines.md 示例
+
+```markdown
+# 我的日常作息
+
+## 工作日
+- 07:00 - 起床，需要轻快的音乐唤醒
+- 09:00-12:00 - 工作，需要专注的背景音乐
+- 22:00 - 睡前，舒缓的音乐
+```
+
+#### mood-rules.json 示例
+
+```json
+{
+  "moodRules": [
+    {
+      "trigger": "加班",
+      "response": "播放轻音乐帮助专注",
+      "songs": ["Weightless", "Dreaming"]
+    },
+    {
+      "trigger": "难过",
+      "response": "播放治愈系音乐",
+      "songs": ["Fix You", "夜空中最亮的星"]
+    }
+  ]
+}
+```
+
 ## 🏗️ 项目结构
 
 ```
