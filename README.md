@@ -45,9 +45,19 @@ cp .env.example .env
 # 3. 启动 ncm-cli 服务（端口 3000）
 # 4. 启动 Claudio 服务（端口 8080）
 npm start
+
+# 启动后访问：
+# - Claudio 主界面: http://localhost:8080
+# - 网易云音乐 API: http://localhost:3000
 ```
 
 访问 http://localhost:8080 即可使用。
+
+> **双服务架构**：Claudio 同时运行两个服务
+> - **端口 8080** - Claudio 主服务（Web 界面 + AI 对话）
+> - **端口 3000** - ncm-cli 音乐 API（网易云音乐搜索/播放）
+> 
+> 首次启动时会自动配置并提示扫码登录网易云音乐。
 
 ### 必需配置
 
