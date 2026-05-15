@@ -42,7 +42,7 @@ cp .env.example .env
 # 启动服务（会自动完成以下步骤）：
 # 1. 从 .env 读取凭证，自动配置 ncm-cli
 # 2. 检查登录状态，未登录则生成二维码供扫码
-# 3. 启动 ncm-cli 服务（端口 3000）
+# 3. 克隆并启动 NeteaseCloudMusicApi（端口 3000）
 # 4. 启动 Claudio 服务（端口 8080）
 npm start
 

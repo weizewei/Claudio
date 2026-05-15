@@ -1,7 +1,7 @@
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, existsSync } from 'path';
 import config from './config.js';
 
 const execAsync = promisify(exec);
@@ -10,20 +10,23 @@ const execAsync = promisify(exec);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
 const ncmCliPath = join(projectRoot, 'node_modules/.bin/ncm-cli');
+const neteaseApiPath = join(projectRoot, 'NeteaseCloudMusicApi');
 
-// ncm-cli 子进程引用
-let ncmCliProcess = null;
+// neteaseApi 子进程引用
+let neteaseApiProcess = null;
 
 /**
- * 启动 ncm-cli 服务（后台运行在 3000 端口）
+ * 初始化网易云音乐服务
+ * 1. 配置 ncm-cli 凭证（用于登录）
+ * 2. 启动 NeteaseCloudMusicApi 服务器（提供 API）
  */
 export async function startNCMService() {
   const appId = config.ncmOpen?.appId;
   const privateKey = config.ncmOpen?.privateKey;
 
-  console.log('🔧 初始化网易云音乐 CLI...');
+  console.log('🔧 初始化网易云音乐服务...');
 
-  // 步骤1: 配置 appId 和 privateKey
+  // 步骤1: 配置 ncm-cli 凭证
   if (appId && privateKey) {
     console.log('📝 配置 ncm-cli 凭证...');
     try {
@@ -31,11 +34,10 @@ export async function startNCMService() {
       await execAsync(`"${ncmCliPath}" config set privateKey ${privateKey}`, { timeout: 10000 });
       console.log('✅ ncm-cli 凭证配置完成');
     } catch (error) {
-      console.error('❌ ncm-cli 凭证配置失败:', error.message);
+      console.error('⚠️  ncm-cli 凭证配置失败:', error.message);
     }
   } else {
     console.log('⚠️  未在 .env 中找到 NCM_OPEN_APP_ID / NCM_OPEN_PRIVATE_KEY');
-    console.log('   网易云音乐搜索功能将不可用');
     console.log('   请访问 https://music.163.com/st/developer 注册获取');
   }
 
@@ -56,13 +58,12 @@ export async function startNCMService() {
     await autoLogin();
   }
 
-  // 步骤3: 启动 ncm-cli 服务（后台进程）
-  return startNCMCliDaemon();
+  // 步骤3: 启动 NeteaseCloudMusicApi 服务器
+  return startNeteaseApi();
 }
 
 /**
  * 自动登录（后台轮询模式）
- * 生成二维码链接，用户扫码后自动完成登录
  */
 async function autoLogin() {
   try {
@@ -73,90 +74,131 @@ async function autoLogin() {
       console.log('');
       console.log('📱 请使用网易云音乐 App 扫码登录:');
       console.log(`   🔗 ${data.clickableUrl || data.qrCodeUrl}`);
-      console.log('   扫码后 ncm-cli 会自动完成登录，无需重启服务');
-      console.log('');
-    } else if (data.clickableUrl) {
-      console.log('');
-      console.log('📱 请点击以下链接登录网易云音乐:');
-      console.log(`   🔗 ${data.clickableUrl}`);
+      console.log('   扫码后 ncm-cli 会自动完成登录');
       console.log('');
     }
   } catch (error) {
-    console.log('⚠️  自动登录失败，请手动运行: npx ncm-cli login');
+    console.log('⚠️  自动登录启动失败，请手动运行: npx ncm-cli login');
   }
 }
 
 /**
- * 启动 ncm-cli 作为后台守护进程
- * ncm-cli 会启动一个本地服务提供 API
+ * 检查端口是否被占用
  */
-function startNCMCliDaemon() {
-  return new Promise((resolve) => {
-    // 检查 3000 端口是否已被占用
-    execAsync('lsof -i :3000 2>/dev/null || true', { timeout: 3000 })
-      .then(({ stdout }) => {
-        if (stdout && stdout.includes('LISTEN')) {
-          console.log('✅ 端口 3000 已有服务运行，跳过 ncm-cli 启动');
-          resolve({ success: true, port: 3000 });
-          return;
-        }
-
-        // 启动 ncm-cli 服务
-        console.log('🚀 启动 ncm-cli 服务 (端口 3000)...');
-
-        ncmCliProcess = spawn('node', [
-          join(projectRoot, 'node_modules/@music163/ncm-cli/dist/index.js'),
-          'serve',
-          '--port', '3000'
-        ], {
-          cwd: projectRoot,
-          stdio: ['ignore', 'pipe', 'pipe'],
-          detached: false
-        });
-
-        ncmCliProcess.stdout?.on('data', (data) => {
-          const msg = data.toString().trim();
-          if (msg) console.log(`   [ncm-cli] ${msg}`);
-        });
-
-        ncmCliProcess.stderr?.on('data', (data) => {
-          const msg = data.toString().trim();
-          if (msg && !msg.includes('warn')) {
-            console.error(`   [ncm-cli] ${msg}`);
-          }
-        });
-
-        ncmCliProcess.on('error', (err) => {
-          console.error('❌ ncm-cli 启动失败:', err.message);
-          resolve({ success: false, error: err.message });
-        });
-
-        ncmCliProcess.on('exit', (code) => {
-          if (code !== 0 && code !== null) {
-            console.log(`⚠️  ncm-cli 进程退出 (code: ${code})`);
-          }
-        });
-
-        // 给服务一点启动时间
-        setTimeout(() => {
-          console.log('✅ ncm-cli 服务已启动');
-          resolve({ success: true, port: 3000 });
-        }, 3000);
-      })
-      .catch(() => {
-        // lsof 不可用，直接尝试启动
-        resolve({ success: false, error: '无法检查端口' });
-      });
-  });
+async function isPortInUse(port) {
+  try {
+    const { stdout } = await execAsync(`lsof -i :${port} 2>/dev/null || true`, { timeout: 3000 });
+    return stdout.includes('LISTEN');
+  } catch {
+    return false;
+  }
 }
 
 /**
- * 停止 ncm-cli 服务
+ * 克隆 NeteaseCloudMusicApi
+ */
+async function cloneNeteaseApi() {
+  console.log('📦 首次运行，克隆 NeteaseCloudMusicApi...');
+  try {
+    await execAsync(`git clone --depth 1 https://github.com/Binaryify/NeteaseCloudMusicApi.git "${neteaseApiPath}"`, {
+      timeout: 60000,
+      cwd: projectRoot
+    });
+    console.log('✅ NeteaseCloudMusicApi 克隆完成');
+    return true;
+  } catch (error) {
+    console.error('❌ 克隆失败:', error.message);
+    return false;
+  }
+}
+
+/**
+ * 安装 NeteaseCloudMusicApi 依赖
+ */
+async function installNeteaseApiDeps() {
+  console.log('📦 安装 NeteaseCloudMusicApi 依赖...');
+  try {
+    await execAsync('npm install', { timeout: 120000, cwd: neteaseApiPath });
+    console.log('✅ NeteaseCloudMusicApi 依赖安装完成');
+    return true;
+  } catch (error) {
+    console.error('❌ 依赖安装失败:', error.message);
+    return false;
+  }
+}
+
+/**
+ * 启动 NeteaseCloudMusicApi 服务器
+ */
+async function startNeteaseApi() {
+  // 检查端口是否已被占用
+  if (await isPortInUse(3000)) {
+    console.log('✅ 端口 3000 已有服务运行');
+    return { success: true, port: 3000 };
+  }
+
+  // 检查是否已克隆
+  if (!existsSync(neteaseApiPath)) {
+    const cloned = await cloneNeteaseApi();
+    if (!cloned) {
+      return { success: false, error: '克隆失败' };
+    }
+  }
+
+  // 检查 node_modules
+  if (!existsSync(join(neteaseApiPath, 'node_modules'))) {
+    const installed = await installNeteaseApiDeps();
+    if (!installed) {
+      return { success: false, error: '依赖安装失败' };
+    }
+  }
+
+  // 启动服务
+  console.log('🚀 启动 NeteaseCloudMusicApi 服务 (端口 3000)...');
+
+  neteaseApiProcess = spawn('node', ['app.js'], {
+    cwd: neteaseApiPath,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    env: { ...process.env, PORT: 3000 }
+  });
+
+  neteaseApiProcess.stdout?.on('data', (data) => {
+    const msg = data.toString().trim();
+    if (msg) console.log(`   [NeteaseApi] ${msg}`);
+  });
+
+  neteaseApiProcess.stderr?.on('data', (data) => {
+    const msg = data.toString().trim();
+    if (msg && !msg.includes('warn') && !msg.includes('deprecated')) {
+      console.log(`   [NeteaseApi] ${msg}`);
+    }
+  });
+
+  neteaseApiProcess.on('error', (err) => {
+    console.error('❌ NeteaseCloudMusicApi 启动失败:', err.message);
+  });
+
+  neteaseApiProcess.on('exit', (code) => {
+    if (code !== 0 && code !== null) {
+      console.log(`⚠️  NeteaseCloudMusicApi 进程退出 (code: ${code})`);
+    }
+  });
+
+  // 等待服务启动
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  console.log('✅ NeteaseCloudMusicApi 服务已启动 (端口 3000)');
+  return { success: true, port: 3000 };
+}
+
+/**
+ * 停止 NeteaseCloudMusicApi 服务
  */
 export function stopNCMService() {
-  if (ncmCliProcess) {
-    ncmCliProcess.kill('SIGTERM');
-    ncmCliProcess = null;
-    console.log('🛑 ncm-cli 服务已停止');
+  if (neteaseApiProcess) {
+    neteaseApiProcess.kill('SIGTERM');
+    neteaseApiProcess = null;
+    console.log('🛑 NeteaseCloudMusicApi 服务已停止');
   }
 }

@@ -48,3 +48,6 @@ user/user-taste.json
 # Temporary files
 tmp/
 temp/
+
+# NeteaseCloudMusicApi (auto-cloned, gitignored)
+NeteaseCloudMusicApi/
