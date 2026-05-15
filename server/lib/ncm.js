@@ -5,8 +5,9 @@ let NCM_API = null;
 
 async function getApi() {
   if (!NCM_API) {
-    // NeteaseCloudMusicApi 使用 CommonJS，需要动态导入
-    NCM_API = await import('NeteaseCloudMusicApi');
+    // NeteaseCloudMusicApi 导出的是 default，需要访问 .default
+    const module = await import('NeteaseCloudMusicApi');
+    NCM_API = module.default;
   }
   return NCM_API;
 }
