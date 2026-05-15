@@ -29,16 +29,9 @@ export default {
     baseUrl: 'https://openspeech.bytedance.com/api/v1/tts'
   },
   
-  // 网易云音乐配置（第三方API，备用）
+  // 网易云音乐配置
   ncm: {
-    cookie: process.env.NCM_COOKIE || '',
-    baseUrl: process.env.NCM_BASE_URL || 'http://localhost:3000'
-  },
-  
-  // 网易云音乐开放平台配置（官方CLI）
-  ncmOpen: {
-    appId: process.env.NCM_OPEN_APP_ID || '',
-    privateKey: process.env.NCM_OPEN_PRIVATE_KEY || ''
+    cookie: process.env.NCM_COOKIE || ''
   },
   
   // 天气配置

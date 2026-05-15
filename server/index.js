@@ -15,7 +15,6 @@ import { WebSocketServer } from 'ws';
 import config_ from './lib/config.js';
 import router from './lib/router.js';
 import ncm from './lib/ncm.js';
-import ncmOpen from './lib/ncm-open.js';
 import deepseek from './lib/deepseek.js';
 import state from './lib/state.js';
 import scheduler from './lib/scheduler.js';
@@ -257,36 +256,33 @@ app.get('/api/song/:id', async (req, res) => {
 
 /**
  * GET /api/recommend - 获取推荐歌曲
- * 优先级：开放平台 > DeepSeek推荐 > 网易云第三方API > 备用数据
+ * 优先级：网易云推荐 > DeepSeek推荐 > 备用数据
  */
 app.get('/api/recommend', async (req, res) => {
   try {
     const { mood, limit = 5 } = req.query;
     
-    // 1. 优先尝试网易云音乐开放平台
-    if (ncmOpen.isConfigured) {
-      try {
-        const openSongs = await ncmOpen.getDailyRecommend(parseInt(limit));
-        if (openSongs && openSongs.length > 0) {
-          // 补充播放地址（用第三方API获取）
-           const openWithUrl = await Promise.all(openSongs.map(async (song) => {
-             try {
-               const urlInfo = await ncm.getSongUrl(song.id);
-               return { ...song, url: urlInfo?.url || null };
-             } catch {
-               return { ...song, url: null };
-             }
-           }));
-          return res.json({
-            songs: openWithUrl,
-            say: '这是网易云音乐为你准备的每日推荐',
-            reason: '网易云音乐每日推荐',
-            source: 'ncm-open'
-          });
-        }
-      } catch (error) {
-        console.error('开放平台推荐失败:', error.message);
+    // 1. 尝试网易云音乐推荐
+    try {
+      const recommendSongs = await ncm.getRecommendSongs(parseInt(limit));
+      if (recommendSongs && recommendSongs.length > 0) {
+        const songsWithUrl = await Promise.all(recommendSongs.map(async (song) => {
+          try {
+            const urlInfo = await ncm.getSongUrl(song.id);
+            return { ...song, url: urlInfo?.url || null };
+          } catch {
+            return { ...song, url: null };
+          }
+        }));
+        return res.json({
+          songs: songsWithUrl,
+          say: '这是网易云音乐为你准备的每日推荐',
+          reason: '网易云音乐每日推荐',
+          source: 'ncm'
+        });
       }
+    } catch (error) {
+      console.error('网易云推荐失败:', error.message);
     }
     
     // 2. 使用DeepSeek进行智能推荐
@@ -297,23 +293,9 @@ app.get('/api/recommend', async (req, res) => {
       });
       
       if (result.songs && result.songs.length > 0) {
-        // 尝试用开放平台获取URL
+        // 用网易云API获取播放地址
         const songsWithUrl = await Promise.all(
           result.songs.map(async (song) => {
-            if (ncmOpen.isConfigured) {
-              try {
-                const openResults = await ncmOpen.search(`${song.name} ${song.artist}`, 1);
-                if (openResults && openResults.length > 0 && openResults[0].encryptedId) {
-                  return {
-                    ...openResults[0],
-                    reason: song.reason,
-                    source: 'deepseek+ncm-open'
-                  };
-                }
-              } catch { /* skip */ }
-            }
-            
-            // 尝试第三方API
             try {
               const searchResults = await ncm.search(`${song.name} ${song.artist}`, 1);
               if (searchResults && searchResults.length > 0) {
@@ -435,7 +417,7 @@ app.post('/api/ncm/cookie', async (req, res) => {
     
     // 更新运行时配置
     config.ncm.cookie = cookie;
-    ncm.cookie = cookie;
+    if (ncm) ncm.cookie = cookie;
     
     // 保存到 .env 文件
     const fs = await import('fs');
@@ -561,7 +543,7 @@ app.post('/api/ncm/cookie', async (req, res) => {
     }
 
     // 更新运行时cookie
-    ncm.cookie = cookie;
+    if (ncm) ncm.cookie = cookie;
 
     // 保存到.env文件
     const fs = await import('fs');
@@ -577,141 +559,6 @@ app.post('/api/ncm/cookie', async (req, res) => {
     fs.writeFileSync(envPath, envContent);
 
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== 网易云开放平台 API（官方CLI） ====================
-
-/**
- * GET /api/open/status - 检查开放平台状态
- */
-app.get('/api/open/status', async (req, res) => {
-  try {
-    // 检查CLI状态
-    const cliAvailable = await ncmOpen.isAvailable();
-    const cliLoginStatus = await ncmOpen.checkLogin();
-    
-    res.json({
-      // CLI状态
-      cliAvailable,
-      cliConfigured: ncmOpen.isConfigured,
-      cliLoggedIn: cliLoginStatus.loggedIn,
-      // 综合状态
-      configured: ncmOpen.isConfigured,
-      loggedIn: cliLoginStatus.loggedIn,
-      message: cliLoginStatus.message || ''
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/open/configure - 配置开放平台凭证
- */
-app.post('/api/open/configure', async (req, res) => {
-  try {
-    const { appId, privateKey } = req.body;
-    
-    if (!appId || !privateKey) {
-      return res.status(400).json({ error: '请提供 AppID 和 PrivateKey' });
-    }
-    
-    // 配置CLI
-    const cliResult = await ncmOpen.configure(appId, privateKey);
-    
-    // 保存到.env
-    const fs = await import('fs');
-    const envPath = join(__dirname, '../.env');
-    let envContent = '';
-    try {
-      envContent = fs.readFileSync(envPath, 'utf-8');
-    } catch {
-      envContent = '';
-    }
-    
-    if (envContent.includes('NCM_OPEN_APP_ID=')) {
-      envContent = envContent.replace(/NCM_OPEN_APP_ID=.*/, `NCM_OPEN_APP_ID=${appId}`);
-    } else {
-      envContent += `\nNCM_OPEN_APP_ID=${appId}`;
-    }
-    
-    if (envContent.includes('NCM_OPEN_PRIVATE_KEY=')) {
-      envContent = envContent.replace(/NCM_OPEN_PRIVATE_KEY=.*/, `NCM_OPEN_PRIVATE_KEY=${privateKey}`);
-    } else {
-      envContent += `\nNCM_OPEN_PRIVATE_KEY=${privateKey}`;
-    }
-    
-    fs.writeFileSync(envPath, envContent);
-    
-    res.json({ success: true, message: '配置成功' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/open/search - 使用开放平台搜索歌曲
- */
-app.get('/api/open/search', async (req, res) => {
-  try {
-    const { keyword, limit = 10 } = req.query;
-    
-    if (!keyword) {
-      return res.status(400).json({ error: '请输入搜索关键词' });
-    }
-    
-    // 优先使用CLI搜索
-    if (ncmOpen.isConfigured) {
-      try {
-        const songs = await ncmOpen.search(keyword, parseInt(limit));
-        if (songs && songs.length > 0) {
-          return res.json({ songs, source: 'ncm-open' });
-        }
-      } catch (error) {
-        console.error('CLI搜索失败:', error.message);
-      }
-    }
-    
-    // 回退到第三方API
-    try {
-      const songs = await ncm.search(keyword, parseInt(limit));
-      res.json({ songs: songs || [], source: 'fallback' });
-    } catch (fallbackError) {
-      console.error('第三方API搜索也失败:', fallbackError.message);
-      // 两个搜索源都失败时，返回空数组而不是报错
-      res.json({ songs: [], source: 'none' });
-    }
-  } catch (error) {
-    console.error('搜索处理异常:', error.message);
-    res.json({ songs: [], source: 'none' });
-  }
-});
-
-/**
- * GET /api/open/recommend - 使用开放平台获取每日推荐
- */
-app.get('/api/open/recommend', async (req, res) => {
-  try {
-    const { limit = 10 } = req.query;
-    
-    // 优先使用CLI推荐
-    if (ncmOpen.isConfigured) {
-      try {
-        const songs = await ncmOpen.getDailyRecommend(parseInt(limit));
-        if (songs && songs.length > 0) {
-          return res.json({ songs, source: 'ncm-open' });
-        }
-      } catch (error) {
-        console.error('CLI推荐失败:', error.message);
-      }
-    }
-    
-    // 回退到第三方API
-    const songs = await ncm.getRecommendSongs(parseInt(limit));
-    res.json({ songs, source: 'fallback' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
