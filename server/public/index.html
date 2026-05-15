@@ -170,6 +170,24 @@
           </div>
         </div>
 
+        <div class="setting-group">
+          <h3>网易云音乐</h3>
+          <div class="setting-item">
+            <label>登录状态</label>
+            <div class="ncm-login-status">
+              <span id="ncm-login-status-text" style="color: #888;">未检测</span>
+              <button id="btn-check-ncm-login" class="small-btn" style="margin-left: 8px; padding: 4px 12px; font-size: 12px; border: 1px solid #444; background: transparent; color: #ccc; border-radius: 6px; cursor: pointer;">检测登录</button>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label>网易云 Cookie</label>
+            <textarea id="setting-ncm-cookie" placeholder="从浏览器开发者工具复制网易云音乐的 Cookie（MUSIC_U=...）" style="width: 100%; min-height: 60px; resize: vertical; background: #1a1a2e; border: 1px solid #333; border-radius: 8px; color: #fff; padding: 8px; font-size: 12px; font-family: monospace;"></textarea>
+            <p style="font-size: 11px; color: #888; margin-top: 4px;">
+              获取方式：登录 music.163.com → F12 开发者工具 → Network → 任意请求 → Request Headers → Cookie
+            </p>
+          </div>
+        </div>
+
         <button id="save-settings" class="save-btn">保存设置</button>
       </div>
     </div>

@@ -76,7 +76,7 @@ class NCM {
 
     try {
       const api = await getApi();
-      const result = await api.song_url_v1({ id, level: 'standard' });
+      const result = await api.song_url_v1({ id, level: 'exhigh', cookie: this.cookie });
       
       if (result.status !== 200 || !result.body?.data?.length) {
         return null;

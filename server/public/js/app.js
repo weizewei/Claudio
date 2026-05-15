@@ -61,6 +61,9 @@ class ClaudioApp {
     // 加载今日推荐（但不自动播放）
     this.loadTodayRecommend();
     
+    // 启动时自动检测网易云登录状态
+    this.autoCheckNCMLogin();
+    
     if (window.lucide) {
       window.lucide.createIcons();
     }
@@ -96,6 +99,10 @@ class ClaudioApp {
       this.closePlaylist();
     });
     btnSave?.addEventListener('click', () => this.saveSettings());
+
+    // 网易云登录检测
+    const btnCheckNCM = document.getElementById('btn-check-ncm-login');
+    btnCheckNCM?.addEventListener('click', () => this.checkNCMLogin());
 
     // 语音输入
     const btnVoice = document.getElementById('btn-voice');
@@ -622,7 +629,74 @@ class ClaudioApp {
     this.ttsEmotion = settings.ttsEmotion;
     this.volcanoTTSConfig.apiKey = settings.volcanoApiKey;
 
+    // 保存网易云 Cookie 到服务端
+    const ncmCookie = document.getElementById('setting-ncm-cookie')?.value?.trim();
+    if (ncmCookie) {
+      this.saveNCMCookie(ncmCookie);
+    }
+
     this.closeSettings();
+  }
+
+  // ==================== 网易云音乐登录 ====================
+
+  async checkNCMLogin() {
+    const statusText = document.getElementById('ncm-login-status-text');
+    statusText.textContent = '检测中...';
+    statusText.style.color = '#888';
+
+    try {
+      const cookie = document.getElementById('setting-ncm-cookie')?.value?.trim();
+      const response = await fetch('/api/ncm/login-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookie })
+      });
+      const data = await response.json();
+
+      if (data.loggedIn) {
+        statusText.textContent = `✅ ${data.message}`;
+        statusText.style.color = '#4ade80';
+      } else {
+        statusText.textContent = `❌ ${data.message}`;
+        statusText.style.color = '#f87171';
+      }
+    } catch (error) {
+      statusText.textContent = '❌ 检测失败';
+      statusText.style.color = '#f87171';
+    }
+  }
+
+  async saveNCMCookie(cookie) {
+    try {
+      await fetch('/api/ncm/cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookie })
+      });
+      console.log('网易云 Cookie 已保存');
+    } catch (error) {
+      console.error('保存网易云 Cookie 失败:', error);
+    }
+  }
+
+  // 启动时自动检测网易云登录状态
+  async autoCheckNCMLogin() {
+    try {
+      const response = await fetch('/api/ncm/login-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (data.loggedIn) {
+        console.log(`网易云已登录: ${data.nickname}`);
+      } else {
+        console.log('网易云未登录，歌曲可能只能试听 30 秒');
+      }
+    } catch (error) {
+      console.log('网易云登录检测跳过');
+    }
   }
 
   updateSettingsUI() {

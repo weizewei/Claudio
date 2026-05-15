@@ -396,6 +396,76 @@ app.get('/api/stats', (req, res) => {
 });
 
 /**
+ * POST /api/ncm/login-check - 检测网易云登录状态
+ */
+app.post('/api/ncm/login-check', async (req, res) => {
+  try {
+    const cookie = req.body.cookie || config.ncm.cookie;
+    if (!cookie) {
+      return res.json({ loggedIn: false, message: '未配置 Cookie' });
+    }
+    
+    const api = await import('NeteaseCloudMusicApi');
+    const ncmApi = api.default;
+    const result = await ncmApi.login_status({ cookie });
+    
+    const loggedIn = result.status === 200 && result.body?.data?.account;
+    return res.json({
+      loggedIn,
+      nickname: loggedIn ? result.body.data.account.nickname : '',
+      userId: loggedIn ? result.body.data.account.id : '',
+      vipType: loggedIn ? result.body.data.account.vipType : 0,
+      message: loggedIn ? `已登录: ${result.body.data.account.nickname}` : 'Cookie 无效或已过期'
+    });
+  } catch (error) {
+    console.error('检测网易云登录失败:', error.message);
+    res.json({ loggedIn: false, message: '检测失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/ncm/cookie - 保存网易云 Cookie
+ */
+app.post('/api/ncm/cookie', async (req, res) => {
+  try {
+    const { cookie } = req.body;
+    if (!cookie) {
+      return res.status(400).json({ error: 'Cookie 不能为空' });
+    }
+    
+    // 更新运行时配置
+    config.ncm.cookie = cookie;
+    ncm.cookie = cookie;
+    
+    // 保存到 .env 文件
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const envPath = path.join(__dirname, '../.env');
+    
+    let envContent = '';
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf-8');
+    }
+    
+    // 更新或添加 NCM_COOKIE
+    if (envContent.includes('NCM_COOKIE=')) {
+      envContent = envContent.replace(/NCM_COOKIE=.*/, `NCM_COOKIE=${cookie}`);
+    } else {
+      envContent += `\nNCM_COOKIE=${cookie}\n`;
+    }
+    
+    fs.writeFileSync(envPath, envContent, 'utf-8');
+    
+    res.json({ success: true, message: 'Cookie 已保存' });
+  } catch (error) {
+    console.error('保存 Cookie 失败:', error.message);
+    res.status(500).json({ error: '保存失败: ' + error.message });
+  }
+});
+
+/**
  * POST /api/tts - 文字转语音
  */
 app.post('/api/tts', async (req, res) => {
