@@ -21,7 +21,7 @@ import state from './lib/state.js';
 import scheduler from './lib/scheduler.js';
 import tts from './lib/tts.js';
 import context from './lib/context.js';
-import { setupNCM, checkNCMLogin } from './lib/ncm-setup.js';
+import { startNCMService, stopNCMService } from './lib/ncm-setup.js';
 
 const app = express();
 const server = createServer(app);
@@ -656,6 +656,12 @@ app.get('*', (req, res) => {
   res.sendFile(join(__dirname, 'public/index.html'));
 });
 
+// 先初始化 ncm-cli 服务（配置凭证 + 登录 + 启动 3000 端口）
+const ncmSetup = await startNCMService();
+if (!ncmSetup.success) {
+  console.log('⚠️  ncm-cli 服务启动失败，音乐搜索功能将不可用');
+}
+
 // 启动服务器
 server.listen(config_.port, async () => {
   console.log(`
@@ -667,12 +673,6 @@ server.listen(config_.port, async () => {
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝
   `);
-
-  // 自动配置 ncm-cli
-  const ncmSetup = await setupNCM();
-  if (ncmSetup.success) {
-    await checkNCMLogin();
-  }
 
   // 启动调度器
   scheduler.start();
