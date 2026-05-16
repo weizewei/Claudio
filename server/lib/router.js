@@ -150,6 +150,17 @@ class Router {
         return aiResponse;
       }
       
+      // 兜底：AI 在 say 中提到了歌曲但 play 为空，自动提取歌曲名去搜索
+      const extractedSong = this.extractSongFromSay(aiResponse.say);
+      if (extractedSong) {
+        console.log(`AI 提到歌曲但 play 为空，自动提取: ${extractedSong.name} - ${extractedSong.artist}`);
+        return await this.searchAndPlay({
+          say: aiResponse.say,
+          play: [extractedSong],
+          reason: aiResponse.reason || ''
+        });
+      }
+      
       // 如果 AI 只是文字回复，检查是否需要推荐
       const needsMusic = this.detectMusicNeed(query, aiResponse.say);
       
@@ -166,6 +177,40 @@ class Router {
       // 失败时尝试智能推荐作为 fallback
       return await this.smartRecommend(query, '');
     }
+  }
+
+  /**
+   * 从 AI 回复文本中提取歌曲名和歌手
+   * 匹配模式：《歌曲名》- 歌手名 或 《歌曲名》歌手名
+   */
+  extractSongFromSay(say) {
+    if (!say) return null;
+    
+    // 匹配《歌曲名》
+    const songMatch = say.match(/《(.+?)》/);
+    if (!songMatch) return null;
+    
+    const name = songMatch[1];
+    
+    // 尝试提取歌手名：在《》后面找 " - 歌手" 或 "歌手的《" 模式
+    let artist = '';
+    
+    // "《歌》- 歌手" 模式
+    const dashArtist = say.match(/《.+?》\s*[-—–]\s*(.+?)(?:[，,。！!？?\s]|$)/);
+    if (dashArtist) {
+      artist = dashArtist[1].trim();
+    }
+    
+    // "歌手的《歌》" 模式（从 say 前面找）
+    if (!artist) {
+      const beforeSong = say.substring(0, songMatch.index);
+      const artistBefore = beforeSong.match(/(.+?)(?:的|唱的)\s*$/);
+      if (artistBefore) {
+        artist = artistBefore[1].trim();
+      }
+    }
+    
+    return { name, artist };
   }
 
   /**
