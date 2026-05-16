@@ -108,6 +108,17 @@ class DeepSeekAdapter {
     try {
       const content = await this._call(messages);
       
+      // 检查 API 返回是否为空
+      if (!content || !content.trim()) {
+        console.error('DeepSeek API 返回空内容');
+        return {
+          say: '抱歉，我好像走神了，能再说一遍吗？',
+          play: [],
+          reason: '',
+          segue: ''
+        };
+      }
+      
       // 解析JSON响应
       let result;
       try {
@@ -119,6 +130,12 @@ class DeepSeekAdapter {
           reason: '',
           segue: ''
         };
+      }
+
+      // 检查 say 是否为空
+      if (!result.say || !result.say.trim()) {
+        console.error('DeepSeek 返回的 say 为空:', content);
+        result.say = '抱歉，我没听清楚，能再说一遍吗？';
       }
 
       // 保存对话历史

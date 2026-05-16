@@ -72,8 +72,8 @@ app.post('/api/chat', async (req, res) => {
     const response = await router.route(message);
     response.reqid = reqid;
 
-    // 如果say字段为空，设置默认回复
-    if (!response.say) {
+    // 如果say字段为空或只有空格，设置默认回复
+    if (!response.say || !response.say.trim()) {
       response.say = '好的，我收到了你的消息。';
     }
 
