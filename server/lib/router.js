@@ -151,12 +151,12 @@ class Router {
       }
       
       // 兜底：AI 在 say 中提到了歌曲但 play 为空，自动提取歌曲名去搜索
-      const extractedSong = this.extractSongFromSay(aiResponse.say);
-      if (extractedSong) {
-        console.log(`AI 提到歌曲但 play 为空，自动提取: ${extractedSong.name} - ${extractedSong.artist}`);
+      const extractedSongs = this.extractSongsFromSay(aiResponse.say);
+      if (extractedSongs.length > 0) {
+        console.log(`AI 提到歌曲但 play 为空，自动提取: ${extractedSongs.map(s => s.name).join(', ')}`);
         return await this.searchAndPlay({
           say: aiResponse.say,
-          play: [extractedSong],
+          play: extractedSongs,
           reason: aiResponse.reason || ''
         });
       }
@@ -180,37 +180,45 @@ class Router {
   }
 
   /**
-   * 从 AI 回复文本中提取歌曲名和歌手
-   * 匹配模式：《歌曲名》- 歌手名 或 《歌曲名》歌手名
+   * 从 AI 回复文本中提取所有歌曲名和歌手
+   * 匹配模式：《歌曲名》- 歌手名 或 歌手的《歌曲名》
    */
-  extractSongFromSay(say) {
-    if (!say) return null;
+  extractSongsFromSay(say) {
+    if (!say) return [];
     
-    // 匹配《歌曲名》
-    const songMatch = say.match(/《(.+?)》/);
-    if (!songMatch) return null;
+    const songs = [];
     
-    const name = songMatch[1];
+    // 匹配所有《歌曲名》
+    const songRegex = /《(.+?)》/g;
+    let match;
     
-    // 尝试提取歌手名：在《》后面找 " - 歌手" 或 "歌手的《" 模式
-    let artist = '';
-    
-    // "《歌》- 歌手" 模式
-    const dashArtist = say.match(/《.+?》\s*[-—–]\s*(.+?)(?:[，,。！!？?\s]|$)/);
-    if (dashArtist) {
-      artist = dashArtist[1].trim();
-    }
-    
-    // "歌手的《歌》" 模式（从 say 前面找）
-    if (!artist) {
-      const beforeSong = say.substring(0, songMatch.index);
+    while ((match = songRegex.exec(say)) !== null) {
+      const name = match[1];
+      const songIndex = match.index;
+      
+      // 尝试提取歌手名
+      let artist = '';
+      
+      // "歌手的《歌》" 模式（从《前面找）
+      const beforeSong = say.substring(Math.max(0, songIndex - 20), songIndex);
       const artistBefore = beforeSong.match(/(.+?)(?:的|唱的)\s*$/);
       if (artistBefore) {
         artist = artistBefore[1].trim();
       }
+      
+      // "《歌》- 歌手" 或 "《歌》，歌手" 模式（从《后面找）
+      if (!artist) {
+        const afterSong = say.substring(songIndex + match[0].length, songIndex + match[0].length + 30);
+        const artistAfter = afterSong.match(/^\s*[-—–，,]\s*(.+?)(?:[，,。！!？?\s]|$)/);
+        if (artistAfter) {
+          artist = artistAfter[1].trim();
+        }
+      }
+      
+      songs.push({ name, artist });
     }
     
-    return { name, artist };
+    return songs;
   }
 
   /**
