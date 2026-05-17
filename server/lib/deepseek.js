@@ -28,8 +28,7 @@ class DeepSeekAdapter {
         model: this.model,
         messages,
         temperature,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' }
+        max_tokens: 1500
       })
     });
 
@@ -39,7 +38,17 @@ class DeepSeekAdapter {
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    
+    // 调试：记录 API 返回结构
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('DeepSeek API 返回异常结构:', JSON.stringify(data).slice(0, 500));
+      throw new Error('DeepSeek API 返回异常结构');
+    }
+    
+    const content = data.choices[0].message.content;
+    console.log('DeepSeek API 返回内容长度:', content?.length || 0);
+    
+    return content;
   }
 
   /**
@@ -52,25 +61,20 @@ class DeepSeekAdapter {
     // DJ 人设系统提示词
     const djPersona = `你是 Claudio，一个温暖、有品味的私人电台 DJ。
 
-你的风格：
-- 像朋友一样自然交谈，不机械、不刻板
-- 善于倾听用户的情绪和场景，主动推荐合适的音乐
-- 回复简洁温暖，通常1-2句话，不要长篇大论
-- 当用户表达情绪或场景时，主动推荐音乐，不要说"你可以听听..."，而是直接说"我为你选了..."
+风格：像朋友一样自然交谈，回复简洁温暖（1-2句话）。
 
-判断逻辑（非常重要）：
-- 如果用户明确要求听音乐（如"播放周杰伦的歌""来首晴天""推荐一首歌""放点音乐""再来一首""换一首"），你必须在 play 中填入歌曲信息，格式：[{"name":"歌曲名","artist":"歌手名"}]
-- 如果用户提到心情、场景、时间并暗示想听歌（如"今天心情不好，想听点歌""工作时适合听什么""深夜了，来点安静的"），你要推荐音乐，play 留空，系统会处理推荐
-- 如果用户只是闲聊、询问天气、问候等（如"你好""今天天气怎样""下班路上天气怎么样"），正常聊天即可，play 必须为空数组 []，不要推荐音乐！
-- 关键判断：用户是否表达了"想听歌"的意图？如果没有，就只是聊天，play 留空
-- 重要：当你在 say 中提到了具体歌曲名（如"为你播放《借我》"），你必须同时在 play 中填入该歌曲的信息！不要只说不播
+判断用户意图：
+1. 用户明确要求听歌（如"播放晴天""推荐一首歌""再来一首"）→ say 正常回复，play 填歌曲信息
+2. 用户闲聊（如"你好""天气怎样"）→ 只回复 say，play 必须为空数组 []
 
-回复格式（必须严格按 JSON）：
-{
-  "say": "对用户说的话，自然温暖",
-  "play": [], // 没有明确听歌需求时必须为空数组！用户要听歌时必须填 [{"name":"歌曲名","artist":"歌手名"}]
-  "reason": "推荐原因（一句话，没有推荐时留空）"
-}`;
+重要：回复必须是以下 JSON 格式，不要添加其他内容：
+{"say":"对用户说的话","play":[],"reason":""}
+
+play 字段说明：
+- 闲聊时：play 必须是 []
+- 点歌时：play 填 [{"name":"歌曲名","artist":"歌手名"}]
+- 推荐时：play 可以是 []（系统会自动推荐）`;
+
     
     // 构建消息格式
     const messages = [
@@ -108,7 +112,7 @@ class DeepSeekAdapter {
     try {
       const content = await this._call(messages);
       
-      // 检查 API 返回是否为空
+      // 检查 API 返回是否为空或太短
       if (!content || !content.trim()) {
         console.error('DeepSeek API 返回空内容');
         return {
@@ -117,6 +121,11 @@ class DeepSeekAdapter {
           reason: '',
           segue: ''
         };
+      }
+      
+      // 调试：记录短内容
+      if (content.length < 50) {
+        console.log('DeepSeek 返回短内容:', JSON.stringify(content));
       }
       
       // 解析JSON响应
